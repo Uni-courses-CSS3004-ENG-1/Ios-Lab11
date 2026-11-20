@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/note_item.dart';
 
 /// Small wrapper around [SharedPreferences].
 ///
@@ -8,6 +12,7 @@ class StorageService {
 
   static const String darkModeKey = 'app_theme_dark_mode';
   static const String userNameKey = 'user_display_name';
+  static const String notesKey = 'saved_notes_list';
 
   static const String defaultUserName = 'Guest User';
 
@@ -32,4 +37,29 @@ class StorageService {
 
   Future<void> saveUserName(String name) =>
       _prefs.setString(userNameKey, name.trim());
+
+  // ---------- Notes (List<NoteItem> as one JSON String) ----------
+
+  /// String on disk → `jsonDecode` → List of Maps → `NoteItem.fromJson`.
+  List<NoteItem> loadNotes() {
+    final jsonText = _prefs.getString(notesKey);
+    if (jsonText == null || jsonText.isEmpty) return [];
+
+    try {
+      final list = jsonDecode(jsonText) as List<dynamic>;
+      return list
+          .map((item) => NoteItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } on FormatException {
+      return []; // broken JSON on disk: start with an empty list
+    } on TypeError {
+      return []; // valid JSON but not a list of objects
+    }
+  }
+
+  /// `toJson` on every note → `jsonEncode` → one String on disk.
+  Future<void> saveNotes(List<NoteItem> notes) {
+    final jsonText = jsonEncode(notes.map((note) => note.toJson()).toList());
+    return _prefs.setString(notesKey, jsonText);
+  }
 }
