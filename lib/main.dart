@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'screens/home_screen.dart';
 import 'services/storage_service.dart';
 
 Future<void> main() async {
@@ -24,7 +25,12 @@ class VaultApp extends StatefulWidget {
 
 class _VaultAppState extends State<VaultApp> {
   // Filled synchronously from the pre-loaded storage, never `null`.
-  late final bool _isDarkMode = widget.storage.loadDarkMode();
+  late bool _isDarkMode = widget.storage.loadDarkMode();
+
+  Future<void> _setDarkMode(bool isDark) async {
+    setState(() => _isDarkMode = isDark); // update the UI right away
+    await widget.storage.saveDarkMode(isDark); // then write it to disk
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +48,12 @@ class _VaultAppState extends State<VaultApp> {
         useMaterial3: true,
       ),
       themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const Scaffold(
-        body: Center(child: Text('Notes & Settings Vault')),
+      // A short cross-fade instead of a hard jump between themes.
+      themeAnimationDuration: const Duration(milliseconds: 250),
+      home: HomeScreen(
+        storage: widget.storage,
+        isDarkMode: _isDarkMode,
+        onDarkModeChanged: _setDarkMode,
       ),
     );
   }
