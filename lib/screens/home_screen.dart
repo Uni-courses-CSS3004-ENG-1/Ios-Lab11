@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/note_item.dart';
 import '../services/storage_service.dart';
 
 /// The single screen of the app: settings on top, notes below.
@@ -28,10 +29,34 @@ class _HomeScreenState extends State<HomeScreen> {
     text: _userName == StorageService.defaultUserName ? '' : _userName,
   );
 
+  // Notes restored from the JSON string on disk.
+  late final List<NoteItem> _notes = widget.storage.loadNotes();
+  final TextEditingController _noteController = TextEditingController();
+
   @override
   void dispose() {
     _nameController.dispose();
+    _noteController.dispose();
     super.dispose();
+  }
+
+  /// Every change to the list ends here: List → JSON string → disk.
+  Future<void> _persistNotes() => widget.storage.saveNotes(_notes);
+
+  Future<void> _addNote() async {
+    final title = _noteController.text.trim();
+    if (title.isEmpty) return;
+
+    final now = DateTime.now();
+    final note = NoteItem(
+      id: now.microsecondsSinceEpoch.toString(),
+      title: title,
+      dateText: formatDate(now),
+    );
+
+    setState(() => _notes.insert(0, note)); // prepend: newest on top
+    _noteController.clear();
+    await _persistNotes();
   }
 
   Future<void> _saveUserName() async {
@@ -103,10 +128,77 @@ class _HomeScreenState extends State<HomeScreen> {
               onChanged: widget.onDarkModeChanged,
             ),
           ),
+          const SizedBox(height: 24),
+          Text(
+            'My Notes (${_notes.length})',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('noteField'),
+                  controller: _noteController,
+                  textInputAction: TextInputAction.done,
+                  textCapitalization: TextCapitalization.sentences,
+                  onSubmitted: (_) => _addNote(),
+                  decoration: const InputDecoration(
+                    hintText: 'Write a new note…',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IconButton.filled(
+                key: const Key('addNoteButton'),
+                tooltip: 'Add note',
+                onPressed: _addNote,
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_notes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: Text('No notes yet. Add your first one!')),
+            )
+          else
+            for (final note in _notes)
+              Card(
+                key: ValueKey(note.id),
+                child: ListTile(
+                  title: Text(note.title),
+                  subtitle: Text(note.dateText),
+                ),
+              ),
         ],
       ),
     );
   }
+}
+
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// `20 Nov 2026, 18:05`, without adding the intl package.
+String formatDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.day} ${_months[d.month - 1]} ${d.year}, '
+      '${two(d.hour)}:${two(d.minute)}';
 }
 
 /// "Welcome back, name" header at the top of the screen.
