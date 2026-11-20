@@ -38,4 +38,46 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('app_theme_dark_mode'), isTrue);
   });
+
+  String headerName(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const Key('headerUserName'))).data!;
+
+  testWidgets('header shows Guest User when no name is saved', (tester) async {
+    await pumpApp(tester, {});
+    expect(headerName(tester), 'Guest User');
+  });
+
+  testWidgets('saved name is auto-loaded into header and field', (
+    tester,
+  ) async {
+    await pumpApp(tester, {'user_display_name': 'Abror'});
+    expect(headerName(tester), 'Abror');
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('userNameField')),
+    );
+    expect(field.controller!.text, 'Abror');
+  });
+
+  testWidgets('Save writes the username to disk and updates the header', (
+    tester,
+  ) async {
+    await pumpApp(tester, {});
+
+    await tester.enterText(find.byKey(const Key('userNameField')), 'Aigerim');
+    await tester.tap(find.byKey(const Key('saveUserNameButton')));
+    await tester.pump();
+
+    expect(headerName(tester), 'Aigerim');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('user_display_name'), 'Aigerim');
+  });
+
+  testWidgets('Save with an empty field keeps Guest User', (tester) async {
+    await pumpApp(tester, {});
+    await tester.tap(find.byKey(const Key('saveUserNameButton')));
+    await tester.pump();
+
+    expect(headerName(tester), 'Guest User');
+    expect(find.text('Please enter a username first'), findsOneWidget);
+  });
 }
