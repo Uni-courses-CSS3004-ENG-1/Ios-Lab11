@@ -12,6 +12,11 @@ void main() {
     WidgetTester tester, [
     Map<String, Object> saved = const {},
   ]) async {
+    // iPhone-sized screen so the notes below the settings are visible.
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
     SharedPreferences.setMockInitialValues(saved);
     await tester.pumpWidget(VaultApp(storage: await StorageService.init()));
   }
@@ -65,5 +70,46 @@ void main() {
       ]),
     });
     expect(find.text('From disk'), findsOneWidget);
+  });
+
+  final twoNotes = {
+    'saved_notes_list': jsonEncode([
+      {'id': 'a', 'title': 'Alpha', 'dateText': 'x', 'isCompleted': false},
+      {'id': 'b', 'title': 'Beta', 'dateText': 'x', 'isCompleted': false},
+    ]),
+  };
+
+  testWidgets('checkbox toggles completion and updates disk', (tester) async {
+    await pumpApp(tester, twoNotes);
+
+    await tester.tap(find.byKey(const ValueKey('check_b')));
+    await tester.pumpAndSettle();
+    expect((await savedJson())[1]['isCompleted'], isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('check_b')));
+    await tester.pumpAndSettle();
+    expect((await savedJson())[1]['isCompleted'], isFalse);
+  });
+
+  testWidgets('delete button removes the note from disk', (tester) async {
+    await pumpApp(tester, twoNotes);
+
+    await tester.tap(find.byKey(const ValueKey('delete_a')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsNothing);
+    expect((await savedJson()).map((e) => e['id']), ['b']);
+  });
+
+  testWidgets('swipe deletes and Undo puts the note back', (tester) async {
+    await pumpApp(tester, twoNotes);
+
+    await tester.drag(find.text('Alpha'), const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect((await savedJson()).map((e) => e['id']), ['b']);
+
+    await tester.tap(find.text('UNDO'));
+    await tester.pumpAndSettle();
+    expect((await savedJson()).map((e) => e['id']), ['a', 'b']);
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/note_item.dart';
 import '../services/storage_service.dart';
+import '../widgets/note_tile.dart';
 
 /// The single screen of the app: settings on top, notes below.
 class HomeScreen extends StatefulWidget {
@@ -57,6 +58,38 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _notes.insert(0, note)); // prepend: newest on top
     _noteController.clear();
     await _persistNotes();
+  }
+
+  Future<void> _toggleNote(NoteItem note) async {
+    final index = _notes.indexWhere((n) => n.id == note.id);
+    if (index == -1) return;
+    setState(() {
+      _notes[index] = note.copyWith(isCompleted: !note.isCompleted);
+    });
+    await _persistNotes();
+  }
+
+  Future<void> _deleteNote(NoteItem note) async {
+    final index = _notes.indexWhere((n) => n.id == note.id);
+    if (index == -1) return;
+    setState(() => _notes.removeAt(index));
+    await _persistNotes(); // disk is updated right away, before any Undo
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Deleted "${note.title}"'),
+        action: SnackBarAction(
+          label: 'UNDO',
+          onPressed: () async {
+            setState(() => _notes.insert(index.clamp(0, _notes.length), note));
+            await _persistNotes();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _saveUserName() async {
@@ -166,12 +199,11 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else
             for (final note in _notes)
-              Card(
+              NoteTile(
                 key: ValueKey(note.id),
-                child: ListTile(
-                  title: Text(note.title),
-                  subtitle: Text(note.dateText),
-                ),
+                note: note,
+                onToggle: () => _toggleNote(note),
+                onDelete: () => _deleteNote(note),
               ),
         ],
       ),
